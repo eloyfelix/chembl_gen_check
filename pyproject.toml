@@ -1,6 +1,6 @@
 [project]
 name = "genval"
-version = "0.1.0"
+version = "0.1.1"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,3 +12,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build]
 include = ["genval/data/chembl_scaffold.bloom", "genval/data/surechembl_scaffold.bloom"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/genval"]

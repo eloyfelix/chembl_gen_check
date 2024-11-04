@@ -17,7 +17,7 @@ class GenVal:
 
     def __init__(self, filter_name: str = "chembl_scaffold") -> None:
         file_path = files("genval.data").joinpath(databases[filter_name])
-        self.bf = BloomFilter(file_path)
+        self.bf = BloomFilter(str(file_path))
 
     def validate_smiles(self, smiles: str) -> Optional[bool]:
         valid = None
