@@ -1,0 +1,14 @@
+[project]
+name = "genval"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["molbloom==2.2.1"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["genval/data/chembl_scaffold.bloom", "genval/data/surechembl_scaffold.bloom"]
