@@ -1,17 +1,17 @@
 [project]
 name = "genval"
-version = "0.1.1"
+version = "0.2.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["molbloom==2.2.1"]
+dependencies = ["molbloom==2.2.1", "rdkit>=2022.3.3"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
-include = ["genval/data/chembl_scaffold.bloom", "genval/data/surechembl_scaffold.bloom"]
+include = ["genval/data/chembl_scaffold.bloom", "genval/data/chembl_ring_system.bloom"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/genval"]
