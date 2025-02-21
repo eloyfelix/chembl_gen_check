@@ -1,5 +1,7 @@
 from rdkit.Chem import rdFingerprintGenerator
 from rdkit import Chem
+from rdkit.Chem import rdDepictor
+from rdkit.Chem import Draw
 
 MFPGEN = rdFingerprintGenerator.GetMorganGenerator(1)
 ao = rdFingerprintGenerator.AdditionalOutput()
@@ -66,3 +68,23 @@ def score_mol(mol, profile, mode="score", t=0.05):
         print("mode not supported yet, sorry.")
         score = None
     return score, info
+
+
+def highlight_bonds_svg(mol, bond_indices, size=(300, 300)):
+    if not mol.GetNumConformers():
+        rdDepictor.Compute2DCoords(mol)
+
+    drawer = Draw.rdMolDraw2D.MolDraw2DSVG(size[0], size[1])
+
+    colors = {i: (1, 0, 0) for i in bond_indices}
+
+    drawer.DrawMolecule(
+        mol,
+        highlightAtoms=[],
+        highlightBonds=bond_indices,
+        highlightAtomColors={},
+        highlightBondColors=colors,
+    )
+    drawer.FinishDrawing()
+
+    return drawer.GetDrawingText()
