@@ -1,3 +1,8 @@
+import warnings
+# Filter out RDKit converter warnings
+warnings.filterwarnings('ignore', category=RuntimeWarning,
+                       message='to-Python converter for boost::shared_ptr.*')
+
 from importlib.resources import files
 from rdkit.Chem.Scaffolds import MurckoScaffold
 from .ring_systems import RingSystemFinder
