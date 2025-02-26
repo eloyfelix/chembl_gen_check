@@ -1,7 +1,7 @@
 from rdkit.Chem import rdFingerprintGenerator
-from rdkit import Chem
 from rdkit.Chem import rdDepictor
 from rdkit.Chem import Draw
+from rdkit import Chem
 
 MFPGEN = rdFingerprintGenerator.GetMorganGenerator(1)
 ao = rdFingerprintGenerator.AdditionalOutput()
@@ -9,32 +9,41 @@ ao.AllocateBitInfoMap()
 ao.AllocateAtomToBits()
 
 
-def mol_to_pairs(m):
+def mol_to_pairs(mol):
     """
-    function that fractures every bond and reports the two ECFP2
-    (including dummy) at the fracture point.
+    Fractures each bond in the molecule and returns pairs of ECFP2 fingerprints
+    (including dummy atoms) at the fracture points.
     """
     id_pairs = []
-    ri_full = m.GetRingInfo()
-    ar = ri_full.AtomRings()
-    for b in m.GetBonds():
-        bidx = [b.GetBeginAtomIdx(), b.GetEndAtomIdx()]
-        newmol = Chem.FragmentOnBonds(m, [b.GetIdx()])
+    for bond in mol.GetBonds():
+        begin_atom_idx = bond.GetBeginAtomIdx()
+        end_atom_idx = bond.GetEndAtomIdx()
+
+        # create a new molecule by fragmenting the current bond
+        new_mol = Chem.FragmentOnBonds(mol, [bond.GetIdx()])
+
         try:
-            if b.IsInRing():
-                Chem.SanitizeMol(
-                    newmol, sanitizeOps=Chem.SanitizeFlags.SANITIZE_SYMMRINGS
+            Chem.SanitizeMol(new_mol)
+            # sparse fingerprints for the fractured atoms
+            MFPGEN.GetSparseFingerprint(
+                new_mol, fromAtoms=[begin_atom_idx, end_atom_idx], additionalOutput=ao
+            )
+            # extract the fingerprint IDs for the atoms
+            fingerprint_ids = tuple(
+                sorted(
+                    [
+                        ao.GetAtomToBits()[idx][1]
+                        for idx in [begin_atom_idx, end_atom_idx]
+                    ]
                 )
-                ri = newmol.GetRingInfo()  # reset ringinfo trick
-                for ring in ar:
-                    for idx in ring:
-                        ri.AddRing((idx,), (0,))
-            else:
-                Chem.SanitizeMol(newmol)
-            MFPGEN.GetSparseFingerprint(newmol, fromAtoms=bidx, additionalOutput=ao)
-            id_pairs.append(tuple(sorted([ao.GetAtomToBits()[idx][1] for idx in bidx])))
+            )
+            id_pairs.append(fingerprint_ids)
+
+        except Chem.rdchem.KekulizeException:
+            print(f"KekulizationException for bond {bond.GetIdx()}")
+            pass
         except Exception as e:
-            pass  # silent for now
+            print(f"Unexpected exception for bond {bond.GetIdx()}: {e}")
     return id_pairs
 
 
@@ -53,20 +62,13 @@ def assess_per_bond(mol, profile):
     return results
 
 
-def score_mol(mol, profile, mode="score", t=0.05):
+def score_mol(mol, profile, t=0.05):
     apb = assess_per_bond(mol, profile)
     if not apb:
         apb = [0]
     min_val = min(apb)
     info = {"bad_bonds": [i for i, b in enumerate(apb) if b < t]}
-
-    if mode == "threshold":
-        score = 0 if min_val < t else 1
-    elif mode == "score":
-        score = min(0.5 * (min_val / t) ** 0.5, 1.0)
-    else:
-        print("mode not supported yet, sorry.")
-        score = None
+    score = min(0.5 * (min_val / t) ** 0.5, 1.0)
     return score, info
 
 
@@ -75,16 +77,12 @@ def highlight_bonds_svg(mol, bond_indices, size=(300, 300)):
         rdDepictor.Compute2DCoords(mol)
 
     drawer = Draw.rdMolDraw2D.MolDraw2DSVG(size[0], size[1])
-
-    colors = {i: (1, 0, 0) for i in bond_indices}
-
     drawer.DrawMolecule(
         mol,
         highlightAtoms=[],
         highlightBonds=bond_indices,
         highlightAtomColors={},
-        highlightBondColors=colors,
+        highlightBondColors={i: (1, 0, 0) for i in bond_indices},
     )
     drawer.FinishDrawing()
-
     return drawer.GetDrawingText()

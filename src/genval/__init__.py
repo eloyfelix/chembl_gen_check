@@ -70,11 +70,11 @@ class GenVal:
     def check_structural_alerts(self, smiles):
         mol = Chem.MolFromSmiles(smiles)
         if not mol:
-            return None
+            return False
         return len(sa_catalog.GetMatches(mol))
 
     def check_lacan(self, smiles):
         mol = Chem.MolFromSmiles(smiles)
         if not mol:
-            return None
+            return False
         return score_mol(mol, self.lacan_profile)
