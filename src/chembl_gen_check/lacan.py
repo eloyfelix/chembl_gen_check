@@ -40,10 +40,9 @@ def mol_to_pairs(mol):
             id_pairs.append(fingerprint_ids)
 
         except Chem.rdchem.KekulizeException:
-            print(f"KekulizationException for bond {bond.GetIdx()}")
             pass
         except Exception as e:
-            print(f"Unexpected exception for bond {bond.GetIdx()}: {e}")
+            pass
     return id_pairs
 
 

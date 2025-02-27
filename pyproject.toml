@@ -1,5 +1,5 @@
 [project]
-name = "genval"
+name = "chembl_gen_check"
 version = "0.2.0"
 description = "Add your description here"
 readme = "README.md"
@@ -11,7 +11,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
-include = ["genval/data/chembl_scaffold.bloom", "genval/data/chembl_ring_system.bloom", "genval/data/chembl_lacan.pkl"]
+include = ["chembl_gen_check/data/chembl_scaffold.bloom", "chembl_gen_check/data/chembl_ring_system.bloom", "chembl_gen_check/data/chembl_lacan.pkl"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/genval"]
+packages = ["src/chembl_gen_check"]

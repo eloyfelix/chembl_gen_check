@@ -7,8 +7,8 @@ import gzip
 import math
 import re
 import logging
-from genval.ring_systems import RingSystemFinder
-from genval.lacan import mol_to_pairs
+from chembl_gen_check.ring_systems import RingSystemFinder
+from chembl_gen_check.lacan import mol_to_pairs
 from collections import Counter
 from tqdm import tqdm
 import pickle

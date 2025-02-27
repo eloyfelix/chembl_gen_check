@@ -26,17 +26,17 @@ databases = {
 }
 
 
-class GenVal:
+class Checker:
     scaffold_filter = None
     ring_sytem_filter = None
     lacal_profile = None
 
     def __init__(self, db_name: str = "chembl") -> None:
-        s_file_path = files("genval.data").joinpath(databases[db_name]["scaffold"])
+        s_file_path = files("chembl_gen_check.data").joinpath(databases[db_name]["scaffold"])
         self.scaffold_filter = BloomFilter(str(s_file_path))
-        rs_file_path = files("genval.data").joinpath(databases[db_name]["ring_system"])
+        rs_file_path = files("chembl_gen_check.data").joinpath(databases[db_name]["ring_system"])
         self.ring_sytem_filter = BloomFilter(str(rs_file_path))
-        lp_file_path = files("genval.data").joinpath(
+        lp_file_path = files("chembl_gen_check.data").joinpath(
             databases[db_name]["lacan_profile"]
         )
         with open(lp_file_path, "rb") as file:
