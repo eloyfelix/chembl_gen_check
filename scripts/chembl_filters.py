@@ -1,57 +1,21 @@
+from rdkit import Chem, RDLogger
 from rdkit.Chem.Scaffolds import MurckoScaffold
 from molbloom import CustomFilter
-from rdkit import Chem, RDLogger
-from io import BytesIO
-import requests
-import gzip
-import math
-import re
-import logging
-from chembl_gen_check.ring_systems import RingSystemFinder
 from chembl_gen_check.lacan import mol_to_pairs
+from chembl_gen_check.ring_systems import RingSystemFinder
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections import Counter
+import chembl_downloader
 from tqdm import tqdm
+import logging
 import pickle
-from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures import as_completed
+import math
 
 RDLogger.DisableLog("rdApp.*")
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
-
-def get_latest_chembl_file_url():
-    base_url = "https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/"
-    response = requests.get(base_url)
-
-    pattern = re.compile(r"chembl_(\d+)_chemreps\.txt\.gz")
-    if response.status_code == 200:
-        for line in response.text.splitlines():
-            match = pattern.search(line)
-            if match:
-                file_url = base_url + match.group(0)
-                print(f"Found latest file: {file_url}")
-                return file_url
-
-
-def download_and_extract_smiles(file_url):
-    response = requests.get(file_url, stream=True)
-    response.raise_for_status()
-
-    smiles_list = []
-    with gzip.open(BytesIO(response.content), "rt") as f:
-        # Skip the header line
-        next(f)
-        for line in f:
-            try:
-                smiles = line.split("\t")[1].strip()
-                if smiles:
-                    smiles_list.append(smiles)
-            except IndexError:
-                continue
-    return smiles_list
 
 
 def get_lacan_profile_for_mol(mol):
@@ -185,30 +149,44 @@ def smiles_to_mol(smiles):
 
 
 if __name__ == "__main__":
-    logging.info("Starting ChEMBL filter creation")
-    file_url = get_latest_chembl_file_url()
-    if file_url:
-        logging.info(f"Downloading data from {file_url}")
-        smiles_list = download_and_extract_smiles(file_url)
+    logging.info("Downloading/extracting data from ChEMBL")
+    path = chembl_downloader.download_extract_sqlite()
 
-        with ProcessPoolExecutor() as executor:
-            mol_list = list(
-                tqdm(
-                    executor.map(smiles_to_mol, smiles_list, chunksize=10000),
-                    total=len(smiles_list),
-                    desc="Parsing SMILES",
-                    smoothing=0,
-                )
+    smiles_list = []
+    with chembl_downloader.connect() as conn:
+        cursor = conn.cursor()
+        query = """
+        SELECT canonical_smiles
+        FROM compound_structures
+        WHERE molregno IN (
+            SELECT DISTINCT parent_molregno
+            FROM molecule_hierarchy
+        ) AND canonical_smiles IS NOT NULL
+        """
+        cursor.execute(query)
+        for row in cursor.fetchall():
+            smiles_list.append(row[0])
+
+    if not smiles_list:
+        logging.error("No SMILES data extracted. Exiting.")
+        exit(1)
+
+    with ProcessPoolExecutor() as executor:
+        mol_list = list(
+            tqdm(
+                executor.map(smiles_to_mol, smiles_list, chunksize=10000),
+                total=len(smiles_list),
+                desc="Parsing SMILES",
+                smoothing=0,
             )
-        mol_list = [mol for mol in mol_list if mol is not None]
+        )
+    mol_list = [mol for mol in mol_list if mol is not None]
 
-        unique_scaffolds = get_unique_scaffolds(mol_list)
-        create_bloom_filter(unique_scaffolds, "chembl_scaffold")
+    unique_scaffolds = get_unique_scaffolds(mol_list)
+    create_bloom_filter(unique_scaffolds, "chembl_scaffold")
 
-        unique_ring_systems = get_unique_ring_systems(mol_list)
-        create_bloom_filter(unique_ring_systems, "chembl_ring_system")
-        lacan_profile = get_lacan_profile_for_mols(mol_list)
-        with open("chembl_lacan.pkl", "wb") as file:
-            pickle.dump(lacan_profile, file)
-    else:
-        logging.error("Could not find a valid file URL.")
+    unique_ring_systems = get_unique_ring_systems(mol_list)
+    create_bloom_filter(unique_ring_systems, "chembl_ring_system")
+    lacan_profile = get_lacan_profile_for_mols(mol_list)
+    with open("chembl_lacan.pkl", "wb") as file:
+        pickle.dump(lacan_profile, file)

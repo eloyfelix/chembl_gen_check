@@ -1,6 +1,4 @@
 from rdkit.Chem import rdFingerprintGenerator
-from rdkit.Chem import rdDepictor
-from rdkit.Chem import Draw
 from rdkit import Chem
 
 MFPGEN = rdFingerprintGenerator.GetMorganGenerator(1)
@@ -61,7 +59,7 @@ def assess_per_bond(mol, profile):
     return results
 
 
-def score_mol(mol, profile, t=0.05):
+def score_mol(mol, profile, t):
     apb = assess_per_bond(mol, profile)
     if not apb:
         apb = [0]
@@ -69,19 +67,3 @@ def score_mol(mol, profile, t=0.05):
     info = {"bad_bonds": [i for i, b in enumerate(apb) if b < t]}
     score = min(0.5 * (min_val / t) ** 0.5, 1.0)
     return score, info
-
-
-def highlight_bonds_svg(mol, bond_indices, size=(300, 300)):
-    if not mol.GetNumConformers():
-        rdDepictor.Compute2DCoords(mol)
-
-    drawer = Draw.rdMolDraw2D.MolDraw2DSVG(size[0], size[1])
-    drawer.DrawMolecule(
-        mol,
-        highlightAtoms=[],
-        highlightBonds=bond_indices,
-        highlightAtomColors={},
-        highlightBondColors={i: (1, 0, 0) for i in bond_indices},
-    )
-    drawer.FinishDrawing()
-    return drawer.GetDrawingText()

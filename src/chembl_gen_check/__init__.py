@@ -1,7 +1,10 @@
 import warnings
-# Filter out RDKit converter warnings
-warnings.filterwarnings('ignore', category=RuntimeWarning,
-                       message='to-Python converter for boost::shared_ptr.*')
+
+warnings.filterwarnings(
+    "ignore",
+    category=RuntimeWarning,
+    message="to-Python converter for boost::shared_ptr.*",
+)
 
 from importlib.resources import files
 from rdkit.Chem.Scaffolds import MurckoScaffold
@@ -29,12 +32,16 @@ databases = {
 class Checker:
     scaffold_filter = None
     ring_sytem_filter = None
-    lacal_profile = None
+    lacan_profile = None
 
     def __init__(self, db_name: str = "chembl") -> None:
-        s_file_path = files("chembl_gen_check.data").joinpath(databases[db_name]["scaffold"])
+        s_file_path = files("chembl_gen_check.data").joinpath(
+            databases[db_name]["scaffold"]
+        )
         self.scaffold_filter = BloomFilter(str(s_file_path))
-        rs_file_path = files("chembl_gen_check.data").joinpath(databases[db_name]["ring_system"])
+        rs_file_path = files("chembl_gen_check.data").joinpath(
+            databases[db_name]["ring_system"]
+        )
         self.ring_sytem_filter = BloomFilter(str(rs_file_path))
         lp_file_path = files("chembl_gen_check.data").joinpath(
             databases[db_name]["lacan_profile"]
@@ -67,14 +74,15 @@ class Checker:
         except:
             return False
 
-    def check_structural_alerts(self, smiles):
+    def check_structural_alerts(self, smiles: str) -> int:
         mol = Chem.MolFromSmiles(smiles)
         if not mol:
-            return False
+            return 9999  # return a large number to indicate invalid input
         return len(sa_catalog.GetMatches(mol))
 
-    def check_lacan(self, smiles):
+    def check_lacan(self, smiles: str, t: float = 0.05, include_info: bool = False):
         mol = Chem.MolFromSmiles(smiles)
         if not mol:
-            return False
-        return score_mol(mol, self.lacan_profile)
+            return (0.0, {"bad_bonds": []}) if include_info else 0.0
+        result = score_mol(mol, self.lacan_profile, t)
+        return result if include_info else result[0]
