@@ -2,10 +2,16 @@
 
 chembl_gen_check is a simple tool that perfoms basic structural sanity checks that can be used as filters or components in a multi-objective optimisation as part of a generative model.
 
+## Installation
+
+```
+pip install chembl-gen-check
+```
+
 ## Usage example
 
 ```python
-from chembl_gen_check import Checker()
+from chembl_gen_check import Checker
 
 checker = Checker()
 
