@@ -1,6 +1,6 @@
 [project]
 name = "chembl_gen_check"
-version = "0.0.1"
+version = "0.0.2"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -11,7 +11,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
-include = ["chembl_gen_check/data/chembl_scaffold.bloom", "chembl_gen_check/data/chembl_ring_system.bloom", "chembl_gen_check/data/chembl_lacan.pkl"]
+include = ["src/chembl_gen_check/data/chembl_scaffold.bloom", "src/chembl_gen_check/data/chembl_ring_system.bloom", "src/chembl_gen_check/data/chembl_lacan.pkl", "src/chembl_gen_check/*.py"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/chembl_gen_check"]
