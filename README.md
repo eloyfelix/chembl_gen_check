@@ -14,13 +14,12 @@ pip install chembl-gen-check
 from chembl_gen_check import Checker
 
 checker = Checker()
+checker.load_smiles("CC(=O)Oc1ccccc1C(=O)O")
 
-smiles = "CC(=O)Oc1ccccc1C(=O)O"
-
-checker.check_scaffold(smiles) # Using scaffolds found in ChEMBL
-checker.check_ring_systems(smiles) # Using ring systems found in ChEMBL
-checker.check_lacan(smiles) # Profile generated using ChEMBL
-checker.check_structural_alerts(smiles) # ChEMBL set
+checker.check_scaffold() # Using scaffolds found in ChEMBL
+checker.check_ring_systems() # Using ring systems found in ChEMBL
+checker.check_lacan() # Profile generated using ChEMBL
+checker.check_structural_alerts() # ChEMBL set
 ```
 
 Code to extract ring systems adapted from: W Patrick Walters. [useful_rdkit_utils](https://github.com/PatWalters/useful_rdkit_utils/blob/master/useful_rdkit_utils/ring_systems.py)
