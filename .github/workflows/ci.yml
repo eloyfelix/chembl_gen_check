@@ -1,6 +1,12 @@
 name: CI
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to PyPI'
+        required: false
+        type: boolean
+        default: false
   pull_request:
     branches:
       - main
@@ -32,6 +38,9 @@ jobs:
   build-and-publish:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for OIDC authentication
+      contents: read   # Required to checkout the code
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -47,8 +56,6 @@ jobs:
           name: dist
           path: dist/*
       - name: Publish to PyPI
-        if: github.event_name == 'release' && github.event.action == 'published'
-        uses: pypa/gh-action-pypi-publish@v1.5.1
-        with:
-          user: __token__
-          password: ${{ secrets.pypi_password }}
+        # Publish on releases or when manually triggered with publish=true
+        if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+        uses: pypa/gh-action-pypi-publish@release/v1
