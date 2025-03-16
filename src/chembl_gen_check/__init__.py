@@ -45,10 +45,10 @@ class Checker:
         )
         self.scaffold_filter = BloomFilter(str(s_file_path))
 
-        s_file_path = files("chembl_gen_check.data").joinpath(
+        sk_file_path = files("chembl_gen_check.data").joinpath(
             databases[db_name]["skeleton"]
         )
-        self.scaffold_filter = BloomFilter(str(s_file_path))
+        self.skeleton_filter = BloomFilter(str(sk_file_path))
 
         rs_file_path = files("chembl_gen_check.data").joinpath(
             databases[db_name]["ring_system"]
