@@ -98,10 +98,10 @@ class Checker:
         except:
             return False
 
-    def check_structural_alerts(self, num_threads=-1) -> int:
+    def check_structural_alerts(self) -> int:
         if not self.mol:
             return 9999  # return a large number to indicate invalid input
-        return len(sa_catalog.GetMatches(self.mol, numThreads=num_threads))
+        return len(sa_catalog.GetMatches(self.mol))
 
     def check_lacan(self, t: float = 0.05, include_info: bool = False):
         if not self.mol:
