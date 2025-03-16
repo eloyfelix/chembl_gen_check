@@ -189,7 +189,7 @@ if __name__ == "__main__":
 
     unique_scaffolds, unique_skeletons = get_unique_scaffolds(mol_list)
     create_bloom_filter(unique_scaffolds, "chembl_scaffold")
-    create_bloom_filter(unique_skeletons, "chembl_skeletons")
+    create_bloom_filter(unique_skeletons, "chembl_skeleton")
 
     unique_ring_systems = get_unique_ring_systems(mol_list)
     create_bloom_filter(unique_ring_systems, "chembl_ring_system")
