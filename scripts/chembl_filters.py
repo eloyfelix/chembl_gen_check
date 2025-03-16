@@ -26,7 +26,6 @@ def get_lacan_profile_for_mol(mol):
     for a, b in pairs:
         idx_counter[a] += 1
         idx_counter[b] += 1
-
     return idx_counter, pair_counter, len(pairs)
 
 
@@ -60,6 +59,7 @@ def get_lacan_profile_for_mols(mol_list, size=1024, n_workers=None, chunk_size=1
 
 def get_unique_scaffolds(mol_list, n_workers=None, chunk_size=1000):
     unique_scaffolds = set()
+    unique_skeletons = set()
 
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
         futures = []
@@ -71,25 +71,30 @@ def get_unique_scaffolds(mol_list, n_workers=None, chunk_size=1000):
             as_completed(futures), total=len(futures), desc="Processing scaffolds"
         ):
             try:
-                scaffolds = future.result()
+                scaffolds, skeletons = future.result()
                 unique_scaffolds.update(scaffolds)
+                unique_skeletons.update(skeletons)
             except Exception as e:
                 logging.error(f"Error processing a chunk: {e}")
                 continue
 
-    return unique_scaffolds
+    return unique_scaffolds, unique_skeletons
 
 
 def process_scaffold_chunk(mol_list):
     scaffolds = set()
+    skeletons = set()
     for mol in mol_list:
         try:
             scaffold = MurckoScaffold.GetScaffoldForMol(mol)
+            skeleton = MurckoScaffold.MakeScaffoldGeneric(scaffold)
             scaffold_smiles = Chem.MolToSmiles(scaffold)
+            skeleton_smiles = Chem.MolToSmiles(skeleton)
             scaffolds.add(scaffold_smiles)
+            skeletons.add(skeleton_smiles)
         except:
             continue
-    return scaffolds
+    return scaffolds, skeletons
 
 
 def get_unique_ring_systems(mol_list, n_workers=None, chunk_size=1000):
@@ -182,11 +187,13 @@ if __name__ == "__main__":
         )
     mol_list = [mol for mol in mol_list if mol is not None]
 
-    unique_scaffolds = get_unique_scaffolds(mol_list)
+    unique_scaffolds, unique_skeletons = get_unique_scaffolds(mol_list)
     create_bloom_filter(unique_scaffolds, "chembl_scaffold")
+    create_bloom_filter(unique_skeletons, "chembl_skeletons")
 
     unique_ring_systems = get_unique_ring_systems(mol_list)
     create_bloom_filter(unique_ring_systems, "chembl_ring_system")
+
     lacan_profile = get_lacan_profile_for_mols(mol_list)
     with open("chembl_lacan.pkl", "wb") as file:
         pickle.dump(lacan_profile, file)
