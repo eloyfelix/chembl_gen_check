@@ -28,18 +28,10 @@ def mol_to_pairs(mol):
             MFPGEN.GetSparseFingerprint(
                 new_mol, fromAtoms=[begin_atom_idx, end_atom_idx], additionalOutput=ao
             )
-
-            # extract fingerprint IDs for the fractured atoms
             atom_to_bits = ao.GetAtomToBits()
             begin_fp = atom_to_bits[begin_atom_idx][1]
             end_fp = atom_to_bits[end_atom_idx][1]
-
-            if begin_fp <= end_fp:
-                fingerprint_ids = (begin_fp, end_fp)
-            else:
-                fingerprint_ids = (end_fp, begin_fp)
-
-            id_pairs.append(fingerprint_ids)
+            id_pairs.append(tuple(sorted([begin_fp, end_fp])))
         except Exception:
             continue
     return id_pairs

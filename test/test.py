@@ -39,6 +39,21 @@ def test_scaffold_filter(smiles, expected):
     "smiles,expected",
     [
         ("c1ccc2ccccc2c1", True),
+        ("C1=Cc2ccccc2[U]=C1", True),
+    ],
+)
+def test_skeleton_filter(smiles, expected):
+    checker = Checker()
+    checker.load_smiles(smiles)
+    assert checker.check_skeleton() is expected, (
+        f"Expected check_skeleton to return {expected} for {smiles}"
+    )
+
+
+@pytest.mark.parametrize(
+    "smiles,expected",
+    [
+        ("c1ccc2ccccc2c1", True),
         ("C1=Cc2ccccc2[U]=C1", False),
     ],
 )
