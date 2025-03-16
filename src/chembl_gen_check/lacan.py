@@ -3,7 +3,6 @@ from rdkit import Chem
 
 MFPGEN = rdFingerprintGenerator.GetMorganGenerator(1)
 ao = rdFingerprintGenerator.AdditionalOutput()
-ao.AllocateBitInfoMap()
 ao.AllocateAtomToBits()
 
 
@@ -14,33 +13,35 @@ def mol_to_pairs(mol):
     """
     id_pairs = []
     for bond in mol.GetBonds():
+        if bond.GetIsAromatic():
+            continue
         begin_atom_idx = bond.GetBeginAtomIdx()
         end_atom_idx = bond.GetEndAtomIdx()
-
-        # create a new molecule by fragmenting the current bond
-        new_mol = Chem.FragmentOnBonds(mol, [bond.GetIdx()])
+        bond_idx = bond.GetIdx()
 
         try:
+            # create a new molecule by fragmenting the current bond
+            new_mol = Chem.FragmentOnBonds(mol, [bond_idx])
             Chem.SanitizeMol(new_mol)
+
             # sparse fingerprints for the fractured atoms
             MFPGEN.GetSparseFingerprint(
                 new_mol, fromAtoms=[begin_atom_idx, end_atom_idx], additionalOutput=ao
             )
-            # extract the fingerprint IDs for the atoms
-            fingerprint_ids = tuple(
-                sorted(
-                    [
-                        ao.GetAtomToBits()[idx][1]
-                        for idx in [begin_atom_idx, end_atom_idx]
-                    ]
-                )
-            )
-            id_pairs.append(fingerprint_ids)
 
-        except Chem.rdchem.KekulizeException:
-            pass
-        except Exception as e:
-            pass
+            # extract fingerprint IDs for the fractured atoms
+            atom_to_bits = ao.GetAtomToBits()
+            begin_fp = atom_to_bits[begin_atom_idx][1]
+            end_fp = atom_to_bits[end_atom_idx][1]
+
+            if begin_fp <= end_fp:
+                fingerprint_ids = (begin_fp, end_fp)
+            else:
+                fingerprint_ids = (end_fp, begin_fp)
+
+            id_pairs.append(fingerprint_ids)
+        except Exception:
+            continue
     return id_pairs
 
 

@@ -1,7 +1,7 @@
 [project]
 name = "chembl_gen_check"
-version = "0.0.3"
-description = "Simple package that perfoms basic molecular structural sanity checks"
+version = "0.0.4"
+description = "Simple package that performs basic molecular structural sanity checks"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["molbloom==2.2.1", "rdkit>=2022.3.3"]
@@ -11,7 +11,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
-include = ["src/chembl_gen_check/data/chembl_scaffold.bloom", "src/chembl_gen_check/data/chembl_ring_system.bloom", "src/chembl_gen_check/data/chembl_lacan.pkl", "src/chembl_gen_check/*.py"]
+include = ["src/chembl_gen_check/data/*.bloom", "src/chembl_gen_check/data/chembl_lacan.pkl", "src/chembl_gen_check/*.py"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/chembl_gen_check"]
