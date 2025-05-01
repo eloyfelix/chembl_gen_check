@@ -8,32 +8,40 @@ ao.AllocateAtomToBits()
 
 def mol_to_pairs(mol):
     """
-    Fractures each bond in the molecule and returns pairs of ECFP2 fingerprints
-    (including dummy atoms) at the fracture points.
+    function that fractures every bond and reports the two ECFP2
+    (including dummy) at the fracture point.
     """
     id_pairs = []
+    ri_full = mol.GetRingInfo()
+    atom_rings = ri_full.AtomRings()
     for bond in mol.GetBonds():
-        if bond.GetIsAromatic():
-            continue
         begin_atom_idx = bond.GetBeginAtomIdx()
         end_atom_idx = bond.GetEndAtomIdx()
-        bond_idx = bond.GetIdx()
 
+        # create a new molecule by fragmenting the current bond
+        newmol = Chem.FragmentOnBonds(mol, [bond.GetIdx()])
         try:
-            # create a new molecule by fragmenting the current bond
-            new_mol = Chem.FragmentOnBonds(mol, [bond_idx])
-            Chem.SanitizeMol(new_mol)
-
+            if bond.IsInRing():
+                Chem.SanitizeMol(
+                    newmol, sanitizeOps=Chem.SanitizeFlags.SANITIZE_SYMMRINGS
+                )
+                ri = newmol.GetRingInfo()
+                for ring in atom_rings:
+                    for idx in ring:
+                        ri.AddRing((idx,), (0,))
+            else:
+                Chem.SanitizeMol(newmol)
             # sparse fingerprints for the fractured atoms
             MFPGEN.GetSparseFingerprint(
-                new_mol, fromAtoms=[begin_atom_idx, end_atom_idx], additionalOutput=ao
+                newmol, fromAtoms=[begin_atom_idx, end_atom_idx], additionalOutput=ao
             )
             atom_to_bits = ao.GetAtomToBits()
+            # take bits for radius 1 for atoms at both ends of the bond
             begin_fp = atom_to_bits[begin_atom_idx][1]
             end_fp = atom_to_bits[end_atom_idx][1]
             id_pairs.append(tuple(sorted([begin_fp, end_fp])))
         except Exception:
-            continue
+            pass
     return id_pairs
 
 
