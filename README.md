@@ -1,6 +1,6 @@
 # chembl_gen_check
 
-chembl_gen_check is a simple tool that perfoms basic structural sanity checks that can be used as filters or components in a multi-objective optimisation as part of a generative model.
+chembl_gen_check is a Python library that uses lightweight [MolBloom](https://github.com/whitead/molbloom) filters for rapid verification of the existence of scaffolds, generic scaffolds or ring systems in ChEMBL structures. The library can also indicate whether a compound has uncommon bonds according to the [LACAN](https://github.com/dehaenw/lacan) algorithm, or that a compound triggers a structural alert. Taken together, these checks provide rapid assessment of the reasonableness of ring systems and scaffolds, as well as ensuring that atom and bond environments have precedent.
 
 ## Installation
 
@@ -14,17 +14,26 @@ pip install chembl-gen-check
 from chembl_gen_check import Checker
 
 checker = Checker()
-checker.load_smiles("CC(=O)Oc1ccccc1C(=O)O")
 
-checker.check_scaffold() # Using scaffolds found in ChEMBL
-checker.check_skeleton() # Using skeletons (generic scaffolds) found in ChEMBL
-checker.check_ring_systems() # Using ring systems found in ChEMBL
-checker.check_lacan() # Profile generated using ChEMBL
-checker.check_structural_alerts() # ChEMBL set
+smiles = "CCN(CC)C(=O)C[C@H]1C[C@@H]1c1ccccc1"
+checker.load_smiles(smiles)
+
+# Murcko scaffold found in ChEMBL (True/False)
+checker.check_scaffold()
+
+# Generic Murcko scaffold found in ChEMBL (True/False)
+checker.check_skeleton()
+
+# All molecule ring systems found in ChEMBL (True/False)
+checker.check_ring_systems()
+
+# Number of structural alerts using the ChEMBL set (integer)
+checker.check_structural_alerts()
+
+# LACAN score > 0.5 (True/False)
+checker.check_lacan() > 0.5
 ```
 
 Code to extract ring systems adapted from: W Patrick Walters. [useful_rdkit_utils](https://github.com/PatWalters/useful_rdkit_utils/blob/master/useful_rdkit_utils/ring_systems.py)
 
 Code to calculate LACAN scores adapted from: Dehaen, W. LACAN. https://github.com/dehaenw/lacan/
-
-Using [molbloom](https://github.com/whitead/molbloom) filters for ChEMBL scaffolds and ring systems matching.
