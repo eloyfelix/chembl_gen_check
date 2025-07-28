@@ -10,6 +10,8 @@ from tqdm import tqdm
 import logging
 import pickle
 import math
+import argparse
+import csv
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -46,14 +48,14 @@ def combine_lacan_profiles(profiles, size=1024):
 def get_lacan_profile_for_mols(mol_list, size=1024, n_workers=None, chunk_size=1000):
     profiles = []
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        for i in tqdm(
-            range(0, len(mol_list), chunk_size),
-            desc="Processing molecules for LACAN profile",
-        ):
+        pbar = tqdm(total=len(mol_list), desc="Processing molecules for LACAN profile")
+        for i in range(0, len(mol_list), chunk_size):
             chunk = mol_list[i : i + chunk_size]
             futures = [executor.submit(get_lacan_profile_for_mol, mol) for mol in chunk]
             for future in futures:
                 profiles.append(future.result())
+                pbar.update(1)
+        pbar.close()
     return combine_lacan_profiles(profiles, size)
 
 
@@ -67,16 +69,18 @@ def get_unique_scaffolds(mol_list, n_workers=None, chunk_size=1000):
             chunk = mol_list[i : i + chunk_size]
             futures.append(executor.submit(process_scaffold_chunk, chunk))
 
-        for future in tqdm(
-            as_completed(futures), total=len(futures), desc="Processing scaffolds"
-        ):
+        pbar = tqdm(total=len(mol_list), desc="Processing scaffolds")
+        for future in as_completed(futures):
             try:
                 scaffolds, skeletons = future.result()
                 unique_scaffolds.update(scaffolds)
                 unique_skeletons.update(skeletons)
+                pbar.update(chunk_size)
             except Exception as e:
                 logging.error(f"Error processing a chunk: {e}")
+                pbar.update(chunk_size)
                 continue
+        pbar.close()
 
     return unique_scaffolds, unique_skeletons
 
@@ -107,15 +111,17 @@ def get_unique_ring_systems(mol_list, n_workers=None, chunk_size=1000):
             chunk = mol_list[i : i + chunk_size]
             futures.append(executor.submit(process_ring_systems, chunk, ring_finder))
 
-        for future in tqdm(
-            as_completed(futures), total=len(futures), desc="Processing ring systems"
-        ):
+        pbar = tqdm(total=len(mol_list), desc="Processing ring systems")
+        for future in as_completed(futures):
             try:
                 rings = future.result()
                 unique_rings.update(rings)
+                pbar.update(chunk_size)
             except Exception as e:
                 logging.error(f"Error processing a chunk: {e}")
+                pbar.update(chunk_size)
                 continue
+        pbar.close()
 
     return unique_rings
 
@@ -153,28 +159,87 @@ def smiles_to_mol(smiles):
     return mol
 
 
-if __name__ == "__main__":
-    logging.info("Downloading/extracting data from ChEMBL")
-    path = chembl_downloader.download_extract_sqlite()
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate ChEMBL filters for molecular generation validation"
+    )
+    parser.add_argument(
+        "--chembl_version",
+        type=int,
+        default=35,
+        help="ChEMBL database version to use (integer, minimum 8, default: 35)",
+        choices=range(8, 100),  # Setting upper limit to 100 for future versions
+    )
+    parser.add_argument(
+        "--csv_file",
+        type=str,
+        default=None,
+        help="Path to CSV file containing molecules as SMILES strings instead of ChEMBL",
+    )
+    parser.add_argument(
+        "--scaffold",
+        action="store_true",
+        default=True,
+        help="Generate scaffold bloom filter (default: True)",
+    )
+    parser.add_argument(
+        "--ring_system",
+        action="store_true",
+        default=True,
+        help="Generate ring system bloom filter (default: True)",
+    )
+    parser.add_argument(
+        "--lacan",
+        action="store_true",
+        default=True,
+        help="Generate LACAN profile (default: True)",
+    )
+    args = parser.parse_args()
 
-    smiles_list = []
-    with chembl_downloader.connect() as conn:
-        cursor = conn.cursor()
-        query = """
-        SELECT canonical_smiles
-        FROM compound_structures
-        WHERE molregno IN (
-            SELECT DISTINCT parent_molregno
-            FROM molecule_hierarchy
-        ) AND canonical_smiles IS NOT NULL
-        """
-        cursor.execute(query)
-        for row in cursor.fetchall():
-            smiles_list.append(row[0])
+    formatted_version = (
+        f"{args.chembl_version:02d}"
+        if args.chembl_version < 10
+        else str(args.chembl_version)
+    )
 
-    if not smiles_list:
-        logging.error("No SMILES data extracted. Exiting.")
-        exit(1)
+    if not args.csv_file:
+        logging.info(
+            f"Downloading/extracting data from ChEMBL version {formatted_version}"
+        )
+        path = chembl_downloader.download_extract_sqlite(version=formatted_version)
+
+        if args.chembl_version == 8:
+            compounds_table = "compounds"
+        else:
+            compounds_table = "compound_structures"
+
+        smiles_list = []
+        with chembl_downloader.connect(version=formatted_version) as conn:
+            cursor = conn.cursor()
+
+            query = f"""
+            SELECT canonical_smiles
+            FROM {compounds_table}
+            WHERE molregno IN (
+                SELECT DISTINCT parent_molregno
+                FROM molecule_hierarchy
+            ) AND canonical_smiles IS NOT NULL
+            """
+            cursor.execute(query)
+            for row in cursor.fetchall():
+                smiles_list.append(row[0])
+
+        if not smiles_list:
+            logging.error("No SMILES data extracted. Exiting.")
+            exit(1)
+    else:
+        logging.info(f"Using CSV file: {args.csv_file}")
+        smiles_list = []
+        with open(args.csv_file, "r") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                if "smiles" in row and row["smiles"]:
+                    smiles_list.append(row["smiles"].strip())
 
     with ProcessPoolExecutor() as executor:
         mol_list = list(
@@ -187,13 +252,22 @@ if __name__ == "__main__":
         )
     mol_list = [mol for mol in mol_list if mol is not None]
 
-    unique_scaffolds, unique_skeletons = get_unique_scaffolds(mol_list)
-    create_bloom_filter(unique_scaffolds, "chembl_scaffold")
-    create_bloom_filter(unique_skeletons, "chembl_skeleton")
+    if args.scaffold:
+        unique_scaffolds, unique_skeletons = get_unique_scaffolds(mol_list)
+        create_bloom_filter(unique_scaffolds, "scaffold")
+        create_bloom_filter(unique_skeletons, "skeleton")
+        logging.info(f"Found {len(unique_scaffolds)} unique scaffolds.")
+        logging.info(f"Found {len(unique_skeletons)} unique skeletons.")
 
-    unique_ring_systems = get_unique_ring_systems(mol_list)
-    create_bloom_filter(unique_ring_systems, "chembl_ring_system")
+    if args.ring_system:
+        unique_ring_systems = get_unique_ring_systems(mol_list)
+        create_bloom_filter(unique_ring_systems, "ring_system")
+        logging.info(f"Found {len(unique_ring_systems)} unique ring systems.")
+    if args.lacan:
+        lacan_profile = get_lacan_profile_for_mols(mol_list)
+        with open("lacan.pkl", "wb") as file:
+            pickle.dump(lacan_profile, file)
 
-    lacan_profile = get_lacan_profile_for_mols(mol_list)
-    with open("chembl_lacan.pkl", "wb") as file:
-        pickle.dump(lacan_profile, file)
+
+if __name__ == "__main__":
+    main()
