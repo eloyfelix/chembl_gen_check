@@ -7,6 +7,7 @@ warnings.filterwarnings(
 )
 
 from importlib.resources import files
+from pathlib import Path
 from rdkit.Chem.Scaffolds import MurckoScaffold
 from .ring_systems import RingSystemFinder
 from .lacan import score_mol
@@ -40,25 +41,37 @@ class Checker:
     lacan_profile = None
 
     def __init__(self, db_name: str = "chembl") -> None:
-        s_file_path = files("chembl_gen_check.data").joinpath(
-            databases[db_name]["scaffold"]
-        )
-        self.scaffold_filter = BloomFilter(str(s_file_path))
-
-        sk_file_path = files("chembl_gen_check.data").joinpath(
-            databases[db_name]["skeleton"]
-        )
-        self.skeleton_filter = BloomFilter(str(sk_file_path))
-
-        rs_file_path = files("chembl_gen_check.data").joinpath(
-            databases[db_name]["ring_system"]
-        )
-        self.ring_sytem_filter = BloomFilter(str(rs_file_path))
-
-        lp_file_path = files("chembl_gen_check.data").joinpath(
-            databases[db_name]["lacan_profile"]
-        )
-        with open(lp_file_path, "rb") as file:
+        folder_path = Path(db_name)
+        
+        # Check if db_name is a folder path
+        if folder_path.is_dir():
+            self._load_from_folder(folder_path)
+        else:
+            self._load_from_package(db_name)
+    
+    def _load_from_folder(self, folder_path: Path) -> None:
+        required_files = ["scaffold.bloom", "skeleton.bloom", "ring_system.bloom", "lacan.pkl"]
+        missing_files = [f for f in required_files if not (folder_path / f).exists()]
+        
+        if missing_files:
+            raise FileNotFoundError(f"Missing required files in {folder_path}: {', '.join(missing_files)}")
+        
+        self.scaffold_filter = BloomFilter(str(folder_path / "scaffold.bloom"))
+        self.skeleton_filter = BloomFilter(str(folder_path / "skeleton.bloom"))
+        self.ring_sytem_filter = BloomFilter(str(folder_path / "ring_system.bloom"))
+        
+        with open(folder_path / "lacan.pkl", "rb") as file:
+            self.lacan_profile = pickle.load(file)
+    
+    def _load_from_package(self, db_name: str) -> None:
+        data_files = files("chembl_gen_check.data")
+        db_config = databases[db_name]
+        
+        self.scaffold_filter = BloomFilter(str(data_files.joinpath(db_config["scaffold"])))
+        self.skeleton_filter = BloomFilter(str(data_files.joinpath(db_config["skeleton"])))
+        self.ring_sytem_filter = BloomFilter(str(data_files.joinpath(db_config["ring_system"])))
+        
+        with open(data_files.joinpath(db_config["lacan_profile"]), "rb") as file:
             self.lacan_profile = pickle.load(file)
 
     def load_smiles(self, smiles) -> None:
