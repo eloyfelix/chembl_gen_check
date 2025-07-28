@@ -171,10 +171,10 @@ def main():
         choices=range(8, 100),  # Setting upper limit to 100 for future versions
     )
     parser.add_argument(
-        "--csv_file",
+        "--tsv_file",
         type=str,
         default=None,
-        help="Path to CSV file containing molecules as SMILES strings instead of ChEMBL",
+        help="Path to TSV file containing molecules as SMILES strings instead of ChEMBL",
     )
     parser.add_argument(
         "--scaffold",
@@ -202,7 +202,7 @@ def main():
         else str(args.chembl_version)
     )
 
-    if not args.csv_file:
+    if not args.tsv_file:
         logging.info(
             f"Downloading/extracting data from ChEMBL version {formatted_version}"
         )
@@ -233,10 +233,10 @@ def main():
             logging.error("No SMILES data extracted. Exiting.")
             exit(1)
     else:
-        logging.info(f"Using CSV file: {args.csv_file}")
+        logging.info(f"Using TSV file: {args.tsv_file}")
         smiles_list = []
-        with open(args.csv_file, "r") as file:
-            reader = csv.DictReader(file)
+        with open(args.tsv_file, "r") as file:
+            reader = csv.DictReader(file, delimiter='\t')
             for row in reader:
                 if "smiles" in row and row["smiles"]:
                     smiles_list.append(row["smiles"].strip())
@@ -250,7 +250,6 @@ def main():
                 smoothing=0,
             )
         )
-    mol_list = [mol for mol in mol_list if mol is not None]
 
     if args.scaffold:
         unique_scaffolds, unique_skeletons = get_unique_scaffolds(mol_list)
