@@ -31,84 +31,133 @@ databases = {
         "ring_system": "chembl_ring_system.bloom",
         "lacan_profile": "chembl_lacan.pkl",
     },
+    "surechembl": {
+        "scaffold": "surechembl_scaffold.bloom",
+        "skeleton": "surechembl_skeleton.bloom",
+        "ring_system": "surechembl_ring_system.bloom",
+        "lacan_profile": "surechembl_lacan.pkl",
+    },
 }
+
+# Module-level singleton for ring system finding (avoid recreation per call)
+_ring_system_finder = RingSystemFinder()
 
 
 class Checker:
     scaffold_filter = None
     skeleton_filter = None
-    ring_sytem_filter = None
+    ring_system_filter = None
     lacan_profile = None
 
     def __init__(self, db_name: str = "chembl") -> None:
         folder_path = Path(db_name)
-        
+
         # Check if db_name is a folder path
         if folder_path.is_dir():
             self._load_from_folder(folder_path)
         else:
             self._load_from_package(db_name)
-    
+
     def _load_from_folder(self, folder_path: Path) -> None:
-        required_files = ["scaffold.bloom", "skeleton.bloom", "ring_system.bloom", "lacan.pkl"]
+        required_files = [
+            "scaffold.bloom",
+            "skeleton.bloom",
+            "ring_system.bloom",
+            "lacan.pkl",
+        ]
         missing_files = [f for f in required_files if not (folder_path / f).exists()]
-        
+
         if missing_files:
-            raise FileNotFoundError(f"Missing required files in {folder_path}: {', '.join(missing_files)}")
-        
+            raise FileNotFoundError(
+                f"Missing required files in {folder_path}: {', '.join(missing_files)}"
+            )
+
         self.scaffold_filter = BloomFilter(str(folder_path / "scaffold.bloom"))
         self.skeleton_filter = BloomFilter(str(folder_path / "skeleton.bloom"))
-        self.ring_sytem_filter = BloomFilter(str(folder_path / "ring_system.bloom"))
-        
+        self.ring_system_filter = BloomFilter(str(folder_path / "ring_system.bloom"))
+
         with open(folder_path / "lacan.pkl", "rb") as file:
             self.lacan_profile = pickle.load(file)
-    
+
     def _load_from_package(self, db_name: str) -> None:
         data_files = files("chembl_gen_check.data")
         db_config = databases[db_name]
-        
-        self.scaffold_filter = BloomFilter(str(data_files.joinpath(db_config["scaffold"])))
-        self.skeleton_filter = BloomFilter(str(data_files.joinpath(db_config["skeleton"])))
-        self.ring_sytem_filter = BloomFilter(str(data_files.joinpath(db_config["ring_system"])))
-        
+
+        self.scaffold_filter = BloomFilter(
+            str(data_files.joinpath(db_config["scaffold"]))
+        )
+        self.skeleton_filter = BloomFilter(
+            str(data_files.joinpath(db_config["skeleton"]))
+        )
+        self.ring_system_filter = BloomFilter(
+            str(data_files.joinpath(db_config["ring_system"]))
+        )
+
         with open(data_files.joinpath(db_config["lacan_profile"]), "rb") as file:
             self.lacan_profile = pickle.load(file)
 
     def load_smiles(self, smiles) -> None:
         self.mol = Chem.MolFromSmiles(smiles)
+        # Cache scaffold/skeleton computation
+        self._scaffold = None
+        self._skeleton = None
+
+    def _get_scaffold(self):
+        """Lazily compute and cache scaffold."""
+        if self._scaffold is None and self.mol:
+            try:
+                self._scaffold = MurckoScaffold.GetScaffoldForMol(self.mol)
+            except Exception:
+                pass
+        return self._scaffold
+
+    def _get_skeleton(self):
+        """Lazily compute and cache skeleton (requires scaffold)."""
+        if self._skeleton is None:
+            scaffold = self._get_scaffold()
+            if scaffold:
+                try:
+                    self._skeleton = MurckoScaffold.MakeScaffoldGeneric(scaffold)
+                except Exception:
+                    pass
+        return self._skeleton
 
     def check_scaffold(self) -> bool:
         if not self.mol:
             return False
+        scaffold = self._get_scaffold()
+        if scaffold is None:
+            return False
         try:
-            scaffold = MurckoScaffold.GetScaffoldForMol(self.mol)
             scaffold_smiles = Chem.MolToSmiles(scaffold)
             return scaffold_smiles in self.scaffold_filter
-        except:
+        except Exception:
             return False
 
     def check_skeleton(self) -> bool:
         if not self.mol:
             return False
+        skeleton = self._get_skeleton()
+        if skeleton is None:
+            return False
         try:
-            scaffold = MurckoScaffold.GetScaffoldForMol(self.mol)
-            skeleton = MurckoScaffold.MakeScaffoldGeneric(scaffold)
             skeleton_smiles = Chem.MolToSmiles(skeleton)
             return skeleton_smiles in self.skeleton_filter
-        except:
+        except Exception:
             return False
 
     def check_ring_systems(self) -> bool:
         if not self.mol:
             return False
         try:
-            ring_system_finder = RingSystemFinder()
-            ring_systems = ring_system_finder.find_ring_systems(self.mol, as_mols=False)
+            ring_systems = _ring_system_finder.find_ring_systems(
+                self.mol, as_mols=False
+            )
             for rs in ring_systems:
-                if rs not in self.ring_sytem_filter:
+                if rs not in self.ring_system_filter:
                     return False
             return True
-        except:
+        except Exception:
             return False
 
     def check_structural_alerts(self) -> int:
@@ -121,3 +170,16 @@ class Checker:
             return (0.0, {"bad_bonds": []}) if include_info else 0.0
         result = score_mol(self.mol, self.lacan_profile, t)
         return result if include_info else result[0]
+
+    def check_all(self, t: float = 0.05) -> dict:
+        """
+        Run all checks at once and return results as a dictionary.
+        More efficient than calling individual checks due to cached scaffold/skeleton.
+        """
+        return {
+            "scaffold": self.check_scaffold(),
+            "skeleton": self.check_skeleton(),
+            "ring_systems": self.check_ring_systems(),
+            "structural_alerts": self.check_structural_alerts(),
+            "lacan": self.check_lacan(t=t),
+        }

@@ -38,7 +38,7 @@ def get_atom_invariants(mol):
         inv.append(a.GetFormalCharge())
         try:
             inv.append(min_ring[idx])
-        except:
+        except KeyError:
             inv.append(0)
         invs.append(inv)
     return invs
