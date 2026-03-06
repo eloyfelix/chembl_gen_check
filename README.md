@@ -13,26 +13,25 @@ pip install chembl-gen-check
 ```python
 from chembl_gen_check import Checker
 
-checker = Checker() # ChEMBL by default
+checker = Checker("chembl")
 #checker = Checker("surechembl")
 
 smiles = "CCN(CC)C(=O)C[C@H]1C[C@@H]1c1ccccc1"
 checker.load_smiles(smiles)
 
-# Murcko scaffold found in ChEMBL (True/False)
+# Murcko scaffold found in the loaded database (True/False)
 checker.check_scaffold()
 
-# Generic Murcko scaffold found in ChEMBL (True/False)
+# Generic Murcko scaffold found in loaded database (True/False)
 checker.check_skeleton()
 
-# All molecule ring systems found in ChEMBL (True/False)
+# All molecule ring systems found in loaded database (True/False)
 checker.check_ring_systems()
 
-# Number of structural alerts using the ChEMBL set (integer)
-# changing database ein Checker still keeps ChEMBL structural alerts check
+# Number of structural alerts using the ChEMBL set in RDKit(integer)
 checker.check_structural_alerts()
 
-# LACAN score > 0.5 (True/False)
+# LACAN score > 0.5 using the loaded database (True/False)
 checker.check_lacan() > 0.5
 ```
 
