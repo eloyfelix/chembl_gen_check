@@ -78,3 +78,47 @@ def test_structural_alerts(smiles, expected):
     checker.load_smiles(smiles)
     result = checker.check_structural_alerts()
     assert result == expected, f"Expected {expected} alerts for {smiles}, got {result}"
+
+
+def test_check_all_returns_dict_with_expected_keys():
+    """Test that check_all() returns a dict with all expected keys and types."""
+    checker = Checker()
+    checker.load_smiles("c1ccc2ccccc2c1")  # naphthalene
+    result = checker.check_all()
+    
+    assert isinstance(result, dict), "check_all() should return a dict"
+    expected_keys = {"scaffold", "skeleton", "ring_systems", "structural_alerts", "lacan"}
+    assert set(result.keys()) == expected_keys, f"Expected keys {expected_keys}, got {set(result.keys())}"
+    
+    # Check types
+    assert isinstance(result["scaffold"], bool)
+    assert isinstance(result["skeleton"], bool)
+    assert isinstance(result["ring_systems"], bool)
+    assert isinstance(result["structural_alerts"], int)
+    assert isinstance(result["lacan"], float)
+
+
+def test_check_all_consistency_with_individual_checks():
+    """Test that check_all() results match individual check methods."""
+    checker = Checker()
+    checker.load_smiles("COc1ccc2[nH]cc(CNC(C)=O)c2c1")
+    
+    all_results = checker.check_all()
+    
+    # Results should match individual checks (note: scaffold/skeleton cached)
+    assert all_results["scaffold"] == checker.check_scaffold()
+    assert all_results["skeleton"] == checker.check_skeleton()
+    assert all_results["ring_systems"] == checker.check_ring_systems()
+    assert all_results["structural_alerts"] == checker.check_structural_alerts()
+    assert all_results["lacan"] == checker.check_lacan()
+
+
+def test_surechembl_checker_loads():
+    """Test that Checker with surechembl database loads successfully."""
+    checker = Checker(db_name="surechembl")
+    checker.load_smiles("c1ccccc1")  # benzene
+    
+    # Should be able to run all checks without error
+    result = checker.check_all()
+    assert isinstance(result, dict)
+    assert len(result) == 5
