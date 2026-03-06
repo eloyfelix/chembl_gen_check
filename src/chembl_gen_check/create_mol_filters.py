@@ -303,7 +303,9 @@ def download_surechembl(output_path="compounds.parquet"):
 def count_lines(filepath):
     """Count lines in a file efficiently."""
     with open(filepath, 'rb') as f:
-        return sum(1 for _ in f) - 1  # Subtract 1 for header
+        line_count = sum(1 for _ in f)
+    # Subtract 1 for header, but never return a negative count
+    return max(line_count - 1, 0)
 
 
 class ParallelPipelineProcessor:
@@ -578,8 +580,8 @@ def main():
         "--chembl_version",
         type=int,
         default=36,
-        help="ChEMBL database version to use (integer, minimum 1, default: 36)",
-        choices=range(1, 50),
+        help="ChEMBL database version to use (integer, minimum 8, default: 36)",
+        choices=range(8, 50),
     )
     parser.add_argument(
         "--tsv_file",
@@ -708,22 +710,35 @@ def main():
         do_lacan=args.lacan
     )
 
+    # Determine output prefix based on data source
+    if args.surechembl:
+        output_prefix = "surechembl_"
+    elif args.parquet_file:
+        parquet_stem = os.path.splitext(os.path.basename(args.parquet_file))[0]
+        output_prefix = f"{parquet_stem}_"
+    elif args.tsv_file:
+        tsv_stem = os.path.splitext(os.path.basename(args.tsv_file))[0]
+        output_prefix = f"{tsv_stem}_"
+    else:
+        output_prefix = f"chembl_{formatted_version}_"
+
     # Create and save bloom filters
     if args.scaffold:
-        create_bloom_filter(processor.unique_scaffolds, "scaffold")
-        create_bloom_filter(processor.unique_skeletons, "skeleton")
+        create_bloom_filter(processor.unique_scaffolds, f"{output_prefix}scaffold")
+        create_bloom_filter(processor.unique_skeletons, f"{output_prefix}skeleton")
         logging.info(f"Found {len(processor.unique_scaffolds)} unique scaffolds.")
         logging.info(f"Found {len(processor.unique_skeletons)} unique skeletons.")
 
     if args.ring_system:
-        create_bloom_filter(processor.unique_ring_systems, "ring_system")
+        create_bloom_filter(processor.unique_ring_systems, f"{output_prefix}ring_system")
         logging.info(f"Found {len(processor.unique_ring_systems)} unique ring systems.")
 
     if args.lacan:
         lacan_profile = processor.get_lacan_profile()
-        with open("lacan.pkl", "wb") as file:
+        lacan_filename = f"{output_prefix}lacan.pkl"
+        with open(lacan_filename, "wb") as file:
             pickle.dump(lacan_profile, file)
-        logging.info("LACAN profile saved to lacan.pkl")
+        logging.info(f"LACAN profile saved to {lacan_filename}")
 
 
 if __name__ == "__main__":
