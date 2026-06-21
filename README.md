@@ -63,6 +63,7 @@ A molecule is summarized by its **weakest** bond, `min_PMI`:
 - **`mode="score"`** : returns `min_PMI / (1 + min_PMI)`, a value in
   `[0, 1)`. Higher is more reasonable; `0.5` corresponds to `min_PMI = 1`.
 
-Code to extract ring systems adapted from: W Patrick Walters. [useful_rdkit_utils](https://github.com/PatWalters/useful_rdkit_utils/blob/master/useful_rdkit_utils/ring_systems.py)
+## References
 
-Code to calculate LACAN scores adapted from: Dehaen, W. LACAN. https://github.com/dehaenw/lacan/
+- Code to extract ring systems adapted from: W Patrick Walters. [useful_rdkit_utils](https://github.com/PatWalters/useful_rdkit_utils/blob/master/useful_rdkit_utils/ring_systems.py)
+- Code to calculate LACAN scores adapted from: Dehaen, W. [LACAN](https://github.com/dehaenw/lacan/)
