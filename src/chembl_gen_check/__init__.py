@@ -165,10 +165,12 @@ class Checker:
             return 9999  # return a large number to indicate invalid input
         return len(sa_catalog.GetMatches(self.mol))
 
-    def check_lacan(self, t: float = 0.05, include_info: bool = False):
+    def check_lacan(
+        self, t: float = 0.05, include_info: bool = False, mode: str = "threshold"
+    ):
         if not self.mol:
             return (0.0, {"bad_bonds": []}) if include_info else 0.0
-        result = score_mol(self.mol, self.lacan_profile, t)
+        result = score_mol(self.mol, self.lacan_profile, t, mode=mode)
         return result if include_info else result[0]
 
     def check_all(self, t: float = 0.05) -> dict:
@@ -181,5 +183,5 @@ class Checker:
             "skeleton": self.check_skeleton(),
             "ring_systems": self.check_ring_systems(),
             "structural_alerts": self.check_structural_alerts(),
-            "lacan": self.check_lacan(t=t),
+            "lacan": self.check_lacan(t=t, mode="threshold"),
         }

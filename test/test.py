@@ -1,23 +1,79 @@
 import os, sys
+from collections import Counter
 import pytest
+from rdkit import Chem
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 from chembl_gen_check import Checker
+from chembl_gen_check.lacan import mol_to_pairs
 
 
-@pytest.mark.parametrize(
-    "smiles,expected",
-    [
-        ("COc1ccc2[nH]cc(CNC(C)=O)c2c1", 1.0),
-        ("FNCCC(c1cc2OCOc2cc1)c1ccccc1", 0.0),
-    ],
-)
-def test_check_lacan(smiles, expected):
+def build_lacan_profile(smiles_list):
+    idx_counter = Counter()
+    pair_counter = Counter()
+    total_pairs = 0
+
+    for smiles in smiles_list:
+        mol = Chem.MolFromSmiles(smiles)
+        pairs = mol_to_pairs(mol)
+        pair_counter.update(pairs)
+        for a, b in pairs:
+            idx_counter[a] += 1
+            idx_counter[b] += 1
+        total_pairs += len(pairs)
+
+    return {
+        "idx": dict(idx_counter),
+        "pairs": dict(pair_counter),
+        "setsize": total_pairs,
+        "atom_invariant_scheme": "ring_type",
+        "score_formula": "pmi_over_one_plus_pmi",
+    }
+
+
+# A molecule whose bonds define the reference profile, and one with bond
+# environments absent from that profile (so at least one bond scores ~0).
+LACAN_PROFILED_SMILES = "COc1ccc2[nH]cc(CNC(C)=O)c2c1"
+LACAN_UNUSUAL_SMILES = "FNCCC(c1cc2OCOc2cc1)c1ccccc1"
+
+
+def _lacan_checker():
     checker = Checker()
-    checker.load_smiles(smiles)
-    assert checker.check_lacan() == expected, (
-        f"Expected check_lacan to return {expected} for {smiles}"
-    )
+    checker.lacan_profile = build_lacan_profile([LACAN_PROFILED_SMILES])
+    return checker
+
+
+def test_check_lacan_threshold_mode_passes_profiled_and_fails_unusual():
+    """threshold mode returns a hard 1.0 (pass) / 0.0 (fail) verdict."""
+    checker = _lacan_checker()
+
+    checker.load_smiles(LACAN_PROFILED_SMILES)
+    good_score, good_info = checker.check_lacan(mode="threshold", include_info=True)
+
+    checker.load_smiles(LACAN_UNUSUAL_SMILES)
+    bad_score, bad_info = checker.check_lacan(mode="threshold", include_info=True)
+
+    assert good_score == 1.0
+    assert bad_score == 0.0
+    assert good_info["bad_bonds"] == []
+    assert bad_info["bad_bonds"]
+
+
+def test_check_lacan_score_mode_ranks_profiled_bonds_higher():
+    """score mode returns a continuous min_PMI / (1 + min_PMI) value in [0, 1)."""
+    checker = _lacan_checker()
+
+    checker.load_smiles(LACAN_PROFILED_SMILES)
+    good_score, good_info = checker.check_lacan(mode="score", include_info=True)
+
+    checker.load_smiles(LACAN_UNUSUAL_SMILES)
+    bad_score, bad_info = checker.check_lacan(mode="score", include_info=True)
+
+    assert 0.0 < good_score < 1.0
+    assert bad_score == 0.0
+    assert good_score > bad_score
+    assert good_info["bad_bonds"] == []
+    assert bad_info["bad_bonds"]
 
 
 @pytest.mark.parametrize(

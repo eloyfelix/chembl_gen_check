@@ -18,28 +18,20 @@ def get_atom_invariants(mol):
     - degree
     - h count
     - formal charge
-    - smallest ring atom is in. set to 0 if not in ring
+    - ring type:
+    - 0 if acyclic
+    - 1 if in a non-aromatic ring
+    - 2 if in an aromatic ring
     """
     invs = []
-    sssr = Chem.GetSSSR(mol)
-    min_ring = {}
-    for ring in sssr:
-        for a in ring:
-            if a not in min_ring:
-                min_ring[a] = len(ring)
-            else:
-                if min_ring[a] > len(ring):
-                    min_ring[a] = len(ring)
-    for idx, a in enumerate(mol.GetAtoms()):
-        inv = []
-        inv.append(a.GetAtomicNum())
-        inv.append(a.GetDegree())
-        inv.append(a.GetNumExplicitHs() + a.GetNumImplicitHs())
-        inv.append(a.GetFormalCharge())
-        try:
-            inv.append(min_ring[idx])
-        except KeyError:
-            inv.append(0)
+    for a in mol.GetAtoms():
+        inv = [
+            a.GetAtomicNum(),
+            a.GetDegree(),
+            a.GetNumExplicitHs() + a.GetNumImplicitHs(),
+            a.GetFormalCharge(),
+            int(a.IsInRing()) + int(a.GetIsAromatic()),
+        ]
         invs.append(inv)
     return invs
 
@@ -110,11 +102,44 @@ def assess_per_bond(mol, profile):
     return results
 
 
-def score_mol(mol, profile, t):
+def score_mol(mol, profile, t=0.05, mode="threshold"):
     apb = assess_per_bond(mol, profile)
-    if not apb:
-        apb = [0]
-    min_val = min(apb)
-    info = {"bad_bonds": [i for i, b in enumerate(apb) if b < t]}
-    score = min(0.5 * (min_val / t) ** 0.5, 1.0)
+
+    protected = {
+        bond.GetIdx()
+        for bond in mol.GetBonds()
+        if bond.HasProp("_lp") and bond.GetBoolProp("_lp")
+    }
+
+    # Pair each per-bond score with its originating bond so that protection
+    # filtering and bad-bond reporting use real bond indices instead of relying
+    # on the score list being in bond-index order. assess_per_bond/mol_to_pairs
+    # iterate mol.GetBonds() in order, so zipping against it realigns scores
+    # with the bonds they were computed from.
+    scored_bonds = [
+        (bond.GetIdx(), score)
+        for bond, score in zip(mol.GetBonds(), apb)
+        if bond.GetIdx() not in protected
+    ]
+
+    if not scored_bonds:
+        if apb:
+            # Every bond is protected: nothing left to penalize.
+            return 1.0, {"bad_bonds": []}
+        # No bonds at all (e.g. single-atom input): no precedent to establish.
+        min_val = 0.0
+        bad_bonds = []
+    else:
+        min_val = min(score for _, score in scored_bonds)
+        bad_bonds = [idx for idx, score in scored_bonds if score < t]
+
+    info = {"bad_bonds": bad_bonds}
+
+    if mode == "threshold":
+        score = 0.0 if min_val < t else 1.0
+    elif mode == "score":
+        score = min_val / (1 + min_val)
+    else:
+        raise ValueError(f"Unsupported LACAN scoring mode: {mode}")
+
     return score, info

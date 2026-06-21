@@ -1,6 +1,6 @@
 [project]
 name = "chembl_gen_check"
-version = "0.1.3"
+version = "0.1.4"
 description = "Simple package that performs basic molecular structural sanity checks"
 readme = "README.md"
 requires-python = ">=3.10"
