@@ -100,7 +100,13 @@ def get_lacan_profile_streaming(mol_batches, n_workers=None, chunk_size=1000, pb
     
     # Keep only top 1023 idx occurrences
     idx_occurrences = dict(idx_counter.most_common(1023))
-    return {"idx": idx_occurrences, "pairs": dict(pair_counter), "setsize": total_setsize}
+    return {
+        "idx": idx_occurrences,
+        "pairs": dict(pair_counter),
+        "setsize": total_setsize,
+        "atom_invariant_scheme": "ring_type",
+        "score_formula": "pmi_over_one_plus_pmi",
+    }
 
 
 def get_unique_scaffolds_streaming(mol_batches, n_workers=None, chunk_size=1000, pbar=None):
@@ -568,7 +574,9 @@ class ParallelPipelineProcessor:
         return {
             "idx": idx_occurrences,
             "pairs": dict(self.lacan_pair_counter),
-            "setsize": self.lacan_setsize
+            "setsize": self.lacan_setsize,
+            "atom_invariant_scheme": "ring_type",
+            "score_formula": "pmi_over_one_plus_pmi",
         }
 
 
@@ -579,8 +587,8 @@ def main():
     parser.add_argument(
         "--chembl_version",
         type=int,
-        default=36,
-        help="ChEMBL database version to use (integer, minimum 8, default: 36)",
+        default=37,
+        help="ChEMBL database version to use (integer, minimum 8, default: 37)",
         choices=range(8, 50),
     )
     parser.add_argument(

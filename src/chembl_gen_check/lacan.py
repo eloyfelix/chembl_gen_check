@@ -18,28 +18,20 @@ def get_atom_invariants(mol):
     - degree
     - h count
     - formal charge
-    - smallest ring atom is in. set to 0 if not in ring
+    - ring type:
+    - 0 if acyclic
+    - 1 if in a non-aromatic ring
+    - 2 if in an aromatic ring
     """
     invs = []
-    sssr = Chem.GetSSSR(mol)
-    min_ring = {}
-    for ring in sssr:
-        for a in ring:
-            if a not in min_ring:
-                min_ring[a] = len(ring)
-            else:
-                if min_ring[a] > len(ring):
-                    min_ring[a] = len(ring)
-    for idx, a in enumerate(mol.GetAtoms()):
-        inv = []
-        inv.append(a.GetAtomicNum())
-        inv.append(a.GetDegree())
-        inv.append(a.GetNumExplicitHs() + a.GetNumImplicitHs())
-        inv.append(a.GetFormalCharge())
-        try:
-            inv.append(min_ring[idx])
-        except KeyError:
-            inv.append(0)
+    for a in mol.GetAtoms():
+        inv = [
+            a.GetAtomicNum(),
+            a.GetDegree(),
+            a.GetNumExplicitHs() + a.GetNumImplicitHs(),
+            a.GetFormalCharge(),
+            int(a.IsInRing()) + int(a.GetIsAromatic()),
+        ]
         invs.append(inv)
     return invs
 
@@ -110,11 +102,28 @@ def assess_per_bond(mol, profile):
     return results
 
 
-def score_mol(mol, profile, t):
+def score_mol(mol, profile, t=0.05, mode="score"):
     apb = assess_per_bond(mol, profile)
     if not apb:
-        apb = [0]
-    min_val = min(apb)
-    info = {"bad_bonds": [i for i, b in enumerate(apb) if b < t]}
-    score = min(0.5 * (min_val / t) ** 0.5, 1.0)
+        apb = [0.0]
+
+    protected = {
+        bond.GetIdx()
+        for bond in mol.GetBonds()
+        if bond.HasProp("_lp") and bond.GetBoolProp("_lp")
+    }
+    apb_active = [score for i, score in enumerate(apb) if i not in protected]
+    if not apb_active:
+        return 1.0, {"bad_bonds": []}
+
+    min_val = min(apb_active)
+    info = {"bad_bonds": [i for i, b in enumerate(apb) if b < t and i not in protected]}
+
+    if mode == "threshold":
+        score = 0.0 if min_val < t else 1.0
+    elif mode == "score":
+        score = min_val / (1 + min_val)
+    else:
+        raise ValueError(f"Unsupported LACAN scoring mode: {mode}")
+
     return score, info
