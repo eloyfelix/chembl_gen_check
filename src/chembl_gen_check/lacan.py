@@ -102,22 +102,38 @@ def assess_per_bond(mol, profile):
     return results
 
 
-def score_mol(mol, profile, t=0.05, mode="score"):
+def score_mol(mol, profile, t=0.05, mode="threshold"):
     apb = assess_per_bond(mol, profile)
-    if not apb:
-        apb = [0.0]
 
     protected = {
         bond.GetIdx()
         for bond in mol.GetBonds()
         if bond.HasProp("_lp") and bond.GetBoolProp("_lp")
     }
-    apb_active = [score for i, score in enumerate(apb) if i not in protected]
-    if not apb_active:
-        return 1.0, {"bad_bonds": []}
 
-    min_val = min(apb_active)
-    info = {"bad_bonds": [i for i, b in enumerate(apb) if b < t and i not in protected]}
+    # Pair each per-bond score with its originating bond so that protection
+    # filtering and bad-bond reporting use real bond indices instead of relying
+    # on the score list being in bond-index order. assess_per_bond/mol_to_pairs
+    # iterate mol.GetBonds() in order, so zipping against it realigns scores
+    # with the bonds they were computed from.
+    scored_bonds = [
+        (bond.GetIdx(), score)
+        for bond, score in zip(mol.GetBonds(), apb)
+        if bond.GetIdx() not in protected
+    ]
+
+    if not scored_bonds:
+        if apb:
+            # Every bond is protected: nothing left to penalize.
+            return 1.0, {"bad_bonds": []}
+        # No bonds at all (e.g. single-atom input): no precedent to establish.
+        min_val = 0.0
+        bad_bonds = []
+    else:
+        min_val = min(score for _, score in scored_bonds)
+        bad_bonds = [idx for idx, score in scored_bonds if score < t]
+
+    info = {"bad_bonds": bad_bonds}
 
     if mode == "threshold":
         score = 0.0 if min_val < t else 1.0
