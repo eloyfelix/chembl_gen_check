@@ -31,19 +31,47 @@ def build_lacan_profile(smiles_list):
     }
 
 
-def test_check_lacan_scores_profiled_bonds_higher():
+# A molecule whose bonds define the reference profile, and one with bond
+# environments absent from that profile (so at least one bond scores ~0).
+LACAN_PROFILED_SMILES = "COc1ccc2[nH]cc(CNC(C)=O)c2c1"
+LACAN_UNUSUAL_SMILES = "FNCCC(c1cc2OCOc2cc1)c1ccccc1"
+
+
+def _lacan_checker():
     checker = Checker()
-    checker.lacan_profile = build_lacan_profile(["COc1ccc2[nH]cc(CNC(C)=O)c2c1"])
+    checker.lacan_profile = build_lacan_profile([LACAN_PROFILED_SMILES])
+    return checker
 
-    checker.load_smiles("COc1ccc2[nH]cc(CNC(C)=O)c2c1")
-    good_score, good_info = checker.check_lacan(include_info=True)
 
-    checker.load_smiles("FNCCC(c1cc2OCOc2cc1)c1ccccc1")
-    bad_score, bad_info = checker.check_lacan(include_info=True)
+def test_check_lacan_threshold_mode_passes_profiled_and_fails_unusual():
+    """threshold mode returns a hard 1.0 (pass) / 0.0 (fail) verdict."""
+    checker = _lacan_checker()
 
-    assert good_score > bad_score
-    assert good_score > 0.0
+    checker.load_smiles(LACAN_PROFILED_SMILES)
+    good_score, good_info = checker.check_lacan(mode="threshold", include_info=True)
+
+    checker.load_smiles(LACAN_UNUSUAL_SMILES)
+    bad_score, bad_info = checker.check_lacan(mode="threshold", include_info=True)
+
+    assert good_score == 1.0
     assert bad_score == 0.0
+    assert good_info["bad_bonds"] == []
+    assert bad_info["bad_bonds"]
+
+
+def test_check_lacan_score_mode_ranks_profiled_bonds_higher():
+    """score mode returns a continuous min_PMI / (1 + min_PMI) value in [0, 1)."""
+    checker = _lacan_checker()
+
+    checker.load_smiles(LACAN_PROFILED_SMILES)
+    good_score, good_info = checker.check_lacan(mode="score", include_info=True)
+
+    checker.load_smiles(LACAN_UNUSUAL_SMILES)
+    bad_score, bad_info = checker.check_lacan(mode="score", include_info=True)
+
+    assert 0.0 < good_score < 1.0
+    assert bad_score == 0.0
+    assert good_score > bad_score
     assert good_info["bad_bonds"] == []
     assert bad_info["bad_bonds"]
 
